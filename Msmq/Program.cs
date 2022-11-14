@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Messaging;
 
@@ -10,6 +11,7 @@ namespace Msmq
         private const bool ShowOnConsole = false;
         private static readonly List<string> Data = new List<string>();
         private const string QueuePath = @".\private$\asacepsecrlcmessage";
+        private const string FilePath = "resultData.txt";
 
         private static MessageQueue _queue;
 
@@ -53,22 +55,58 @@ namespace Msmq
             }
             finally
             {
+                var isQueueEmpty = IsQueueEmpty(_queue);
+
+                if (isQueueEmpty)
+                {
+                    CheckDuplicates();
+                }
+
                 _queue.BeginReceive();
+            }
+        }
+
+        private static bool IsQueueEmpty(MessageQueue queue)
+        {
+            using (var enumerator = queue.GetMessageEnumerator2())
+            {
+                return !enumerator.MoveNext();
             }
         }
 
         private static void DoProcessMessage(object input)
         {
-            var msg = input as string;
+            if (!(input is string msg))
+            {
+                throw new Exception("queue is not valid");
+            }
 
             if (ShowOnConsole)
                 Console.WriteLine(msg);
 
-            Data.Add(msg);
+            var m = msg.Split(' ');
 
+            Data.Add(m[0]);
+        }
+
+        private static void CheckDuplicates()
+        {
             var duplicates = Data.GroupBy(x => x)
                 .Where(group => group.Count() > 1)
-                .Select(group => group.Key);
+                .Select(group => group.Key)
+                .ToList();
+
+            if (duplicates.Any())
+            {
+                duplicates.ForEach(Console.WriteLine);
+            }
+
+            WriteAllToFile();
+        }
+
+        private static void WriteAllToFile()
+        {
+            File.WriteAllLines(FilePath, Data);
         }
     }
 }
