@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Messaging;
 
 namespace Msmq
@@ -8,16 +9,20 @@ namespace Msmq
     {
         private const bool ShowOnConsole = false;
         private static readonly List<string> Data = new List<string>();
-        private const string QueuePath = @".\private$\asacepsecpersistrlcmessagefailed";
+        private const string QueuePath = @".\private$\asacepsecrlcmessage";
+
+        private static MessageQueue _queue;
 
         public static void Main(string[] args)
         {
             Console.WriteLine("start reading");
 
-            var queue = new MessageQueue(QueuePath);
-            queue.Formatter = new BinaryMessageFormatter();
-            queue.ReceiveCompleted += Queue_ReceiveCompleted;
-            queue.BeginReceive();
+            _queue = new MessageQueue(QueuePath)
+            {
+                Formatter = new XmlMessageFormatter(new[] { typeof(string) })
+            };
+            _queue.ReceiveCompleted += Queue_ReceiveCompleted;
+            _queue.BeginReceive();
 
             Console.WriteLine("eny key to finish...");
             Console.ReadKey();
@@ -26,29 +31,29 @@ namespace Msmq
 
         private static void Queue_ReceiveCompleted(object sender, ReceiveCompletedEventArgs e)
         {
-            if (!(sender is MessageQueue queue))
+            if (e == null || !e.AsyncResult.IsCompleted)
             {
-                throw new Exception("queue is not valid");
+                return;
             }
 
             try
             {
-                var msg = queue.EndReceive(e.AsyncResult);
+                var msg = e.Message.Body;
 
                 if (msg == null)
                     return;
 
-                var message = msg.Body;
-
-                DoProcessMessage(message);
+                DoProcessMessage(msg);
             }
             catch (Exception ex)
             {
+                Console.WriteLine("----------");
                 Console.WriteLine(ex);
+                Console.WriteLine("----------");
             }
             finally
             {
-                queue.BeginReceive();
+                _queue.BeginReceive();
             }
         }
 
@@ -60,6 +65,10 @@ namespace Msmq
                 Console.WriteLine(msg);
 
             Data.Add(msg);
+
+            var duplicates = Data.GroupBy(x => x)
+                .Where(group => group.Count() > 1)
+                .Select(group => group.Key);
         }
     }
 }
