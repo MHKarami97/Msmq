@@ -102,11 +102,14 @@ namespace Msmq
             }
 
             WriteAllToFile();
+
+            Console.WriteLine("queue is empty");
         }
 
         private static void WriteAllToFile()
         {
             File.WriteAllLines(FilePath, Data);
+            Console.WriteLine("write to file finished");
         }
     }
 }
